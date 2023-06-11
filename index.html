@@ -1,0 +1,390 @@
+
+<!DOCTYPE html>
+<!--230402修复,加了去重功能适应了官方查询接口变化-->
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>GPTAPI-KEY信息查询</title>
+        <link rel="icon" href=''>
+    <style>
+      body {
+        /* background-color: #29d226; */
+        background-image: url("openai.png") ;
+        background-size: cover;
+      }
+      table {
+        margin: auto;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 8px;
+        text-align: center;
+        color: #000000;
+        border: 1px solid #000000;
+      }
+      th:first-child,
+      td:first-child {
+        width: 520px;
+      }
+      h1 {
+        text-align: center;
+        color: #000000;
+        margin-top: 0em;
+      }
+      form {
+        display: flex;
+        justify-content: center;
+        /* align-items: center; */
+        margin-bottom: 20px;
+        opacity: 0.7;
+      }
+      textarea#api-key-input {
+        width: 600px;
+        height: 80px;
+        font-size: 16px;
+        padding: 10px;
+        margin-right: 10px;
+        border-radius: 5px;
+        border: none;
+        resize: vertical;
+        /* rows: 8; */
+      }
+      select#api-url-select,
+      input#custom-url-input {
+        width: 100px;
+        height: 50px;
+        font-size: 16px;
+        background-color: #212121;
+        border-radius: 5px;
+        color: #ffffff;
+        border: none;
+        margin-right: 10px;
+      }
+      input#custom-url-input {
+        display: none;
+      }
+      button {
+        height: 50px;
+        font-size: 16px;
+        background-color: #ff8c00;
+        color: #ffffff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .status-ok {
+        color: #2d8d2d;
+      }
+      .status-error {
+        color: #7e1707;
+      }
+      tr:nth-child(even) {
+        /* 将偶数行背景色改为深蓝色  */
+        background-color: #e141c9;
+      }
+      tr:nth-child(odd) {
+        /* 将偶数行背景色改为深蓝色  */
+        background-color: #f1d39c;
+      }
+    </style>
+  </head>
+  <body>
+     
+      </br>
+       </br>
+        </br>
+         </br>
+          </br>
+           </br>
+            </br>
+             </br>
+    <h1>ChatGPT-API-KEY余额查询-可直接使用官方查询通道</h1>
+    <form>  
+      <!-- <h3>可批量查询</h3> -->
+
+      <textarea id="api-key-input" placeholder="请输入API KEY,每行一个,可批量查询"></textarea>
+      <!-- <div style="display: flex; align-items: flex-end">
+        <select id="api-url-select" style="width: 300px;">
+          <option value="https://api.openai.com" >【官方】 https://api.openai.com</option>
+          <option value="custom">自定义地址</option>
+        </select>
+        <input type="text" id="custom-url-input" placeholder="请输入自定义API链接" style="width: 300px;"/>
+      </div> -->
+      <button type="button" onclick="sendRequest()">发送请求</button>
+    </form>
+    <table id="result-table" style="opacity: 0.7; " >
+      <thead >
+        <tr style="background-color: #4ee141;">
+          <th>API KEY</th>
+          <th style="width: 120px">账号类型</th>
+          <th style="width: 50px">全部额度</th>
+          <th style="width: 185px">已经使用</th>
+		      <th style="width: 100px">上月使用</th>
+          <th style="width: 90px">剩余额度</th>
+			    <th style="width: 80px">API类型</th>
+        </tr>
+      </thead>
+      <tbody style="background-color: #41e154;"></tbody>
+    </table>
+    <script>
+      // 定义查询过的API-KEY列表 
+      let queriedApiKeys = [];
+      async function checkBilling(apiKey) {
+        // 计算起始日期和结束日期 
+        const now = new Date();
+        const startDate = new Date(now - 90 * 24 * 60 * 60 * 1000);
+        const endDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+         
+       
+ 		    const y = now.getFullYear(); //获取年份
+            var m = now.getMonth(); //获取月份
+        m = m < 10 ? '0' + m : m; //月份补 0
+        
+        var mm = now.getMonth() + 1; //获取月份
+        mm = mm < 10 ? '0' + mm : mm; //月份补 0
+        
+        var startDate2 = [y, mm, '01'].join("-");
+        
+        var startDate1 = [y, m, '01'].join("-");
+        
+        
+        
+        var d = new Date(y, m, 0).getDate(); //获取当月最后一日
+        d = d < 10 ? "0" + d : d; //日数补 0
+        
+        var endDate1 = [y, m, d].join("-");
+
+        // 设置API请求URL和请求头 
+
+        const urlSubscription = 'https://api.openai.com/v1/dashboard/billing/subscription'; // 查是否订阅
+        const urlBalance = 'https://api.openai.com/dashboard/billing/credit_grants'; // 查普通账单
+        const urlUsage = `https://api.openai.com/v1/dashboard/billing/usage?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}`; // 查使用量
+  		  const urlUsage1 = `https://api.openai.com/v1/dashboard/billing/usage?start_date=${startDate1}&end_date=${endDate1}`; // 查上个月使用量
+    
+        const urlUsage3 = `https://api.openai.com/v1/dashboard/billing/usage?start_date=${startDate}&end_date=${endDate}`; // 查上个月使用量
+        const urlmodels = 'https://api.openai.com/v1/chat/completions'; // 查模型
+        const headers = {
+          "Authorization": "Bearer " + apiKey,
+          "Content-Type": "application/json"
+        };
+
+        try {
+          // 获取API限额
+          let response = await fetch(urlSubscription, {headers});
+          if (!response.ok) {
+            console.log("您的账户已被封禁,请登录OpenAI进行查看。");
+            return;
+          }
+          const subscriptionData = await response.json();
+          const totalAmount = subscriptionData.hard_limit_usd;
+
+          // 获取已使用量
+          response = await fetch(urlUsage, {headers});
+          const usageData = await response.json();
+          const totalUsage = usageData.total_usage / 100;
+
+          // 计算剩余额度
+          const remaining = totalAmount - totalUsage;
+		        // 如果免费用户需要查询3个月前额度
+  		    // if (plan != "Pay-as-you-go") {
+  		    //   response = await fetch(urlUsage3, {
+  		    //     headers
+  		    //   });
+  		    //   const usageData3 = await response.json();
+  		    //   const totalUsage3 = usageData3.total_usage / 100;
+  		    //   // 计算剩余额度
+  		    //         remaining = totalAmount - totalUsage3;
+  		    // } 
+		       // 账号类型
+          const plan = (subscriptionData.plan.title === "Pay-as-you-go") ? "绑卡用户" : subscriptionData.plan.id;
+		  
+         
+          // 有效期
+          const end_date = subscriptionData.access_until;
+		  // 获取上个月已使用量
+          response = await fetch(urlUsage1, {headers});
+          const usageData1 = await response.json();
+          const totalUsage1 = usageData1.total_usage / 100;
+          // 获取api类型
+          response = await fetch(urlmodels, {
+          method: 'post',
+          headers: {
+            "Authorization": "Bearer " + apiKey,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            "model":"gpt-4",
+            "prompt": "Say this is a test",
+            "max_tokens": 7,
+            "temperature": 0
+            })
+          });
+          const modelsData = await response.json();
+          var models = "GPT4";
+          if(modelsData.error.code === "model_not_found"){
+              console.log("home");
+              models = "GPT3.5";
+          }else{
+              models = "GPT4";
+          }
+
+          // 输出总用量、总额及余额信息
+         
+          console.log(`Total Amount: ${totalAmount.toFixed(2)}`);
+          console.log(`Used: ${totalUsage.toFixed(2)}`);
+          console.log(`Remaining: ${remaining.toFixed(2)}`);
+
+          return [plan,totalAmount, totalUsage,totalUsage1, remaining,models];
+          // return [plan,totalAmount, totalUsage, remaining,formatDate(new Date(end_date * 1000))];
+        } catch (error) {
+          console.error(error);
+          return [null, null, null];
+        }
+      }
+
+      function formatDate(date) {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+
+        return `${year}-${month}-${day}`;
+      }
+
+      function sendRequest() {
+        let apiKeyInput = document.getElementById("api-key-input");
+        
+        // let apiUrlSelect = document.getElementById("api-url-select");
+        let apiUrlSelect = "https://api.openai.com"
+        let customUrlInput = document.getElementById("custom-url-input");
+
+        if (apiKeyInput.value.trim() === "") {
+          alert("请填写API KEY");
+          return;
+        }
+
+        // 添加以下一行代码，清空之前的结果信息
+        document.getElementById("result-table").getElementsByTagName('tbody')[0].innerHTML = "";
+
+        let apiUrl = "";
+        if (apiUrlSelect.value === "custom") {
+          if (customUrlInput.value.trim() === "") {
+            alert("请设置API链接");
+            return;
+          } else {
+            apiUrl = customUrlInput.value.trim();
+          }
+        } else {
+          // apiUrl = apiUrlSelect.value;
+          apiUrl = "https://api.openai.com"
+        }
+
+        let apiKeys = apiKeyInput.value.trim().split("\n");
+
+        let tableBody = document.querySelector("#result-table tbody");
+        for (let i = 0; i < apiKeys.length; i++) {
+          let apiKey = apiKeys[i].trim();
+          // 判断是否已经查询过
+          if (queriedApiKeys.includes(apiKey)) {
+            console.log(`API KEY ${apiKey} 已查询过，跳过此次查询`);
+            continue;
+          }
+          queriedApiKeys.push(apiKey);
+
+          checkBilling(apiKey).then((data) => {
+            // update table with data
+            let row = document.createElement("tr");
+
+            // API KEY
+            let apiKeyCell = document.createElement("td");
+            apiKeyCell.textContent = apiKey;
+            row.appendChild(apiKeyCell);
+
+            if (data[0] === null) {
+              // ERROR MESSAGE
+              let errorMessageCell = document.createElement("td");
+              errorMessageCell.colSpan = "5";
+              errorMessageCell.classList.add("status-error");
+              errorMessageCell.textContent = "不正确或已失效的API-KEY";
+              row.appendChild(errorMessageCell);
+            } else {
+              // Plan
+              let totalPlanCell = document.createElement("td");
+              totalPlanCell.textContent = data[0];
+              row.appendChild(totalPlanCell);
+              // TOTAL GRANTED
+              let totalGrantedCell = document.createElement("td");
+              totalGrantedCell.textContent = data[1].toFixed(2);
+              row.appendChild(totalGrantedCell);
+
+              // TOTAL USED
+              let totalUsedCell = document.createElement("td");
+              totalUsedCell.textContent = data[2].toFixed(2);
+              row.appendChild(totalUsedCell);
+			  // TOTAL USED LAST MONTH
+              let totalUsedCell1 = document.createElement("td");
+              totalUsedCell1.textContent = data[3].toFixed(2);
+              row.appendChild(totalUsedCell1);
+
+              // TOTAL AVAILABLE
+              let totalAvailableCell = document.createElement("td");
+              totalAvailableCell.textContent = data[4].toFixed(2);
+              row.appendChild(totalAvailableCell);
+
+              // MODELS
+              let modelsCell = document.createElement("td");
+              modelsCell.textContent = data[5];
+              row.appendChild(modelsCell);
+              // 有效期
+              // let totalEndDateCell = document.createElement("td");
+              // totalEndDateCell.textContent = data[4];
+              // row.appendChild(totalEndDateCell);
+            }
+
+            tableBody.appendChild(row);
+
+            // 添加以下代码，查询完成后删除已查询的API-KEY
+            if (i === apiKeys.length - 1) {
+              queriedApiKeys = [];
+            }
+          }).catch((error) => {
+            console.error(error);
+            // update table with error message
+            let row = document.createElement("tr");
+            let apiKeyCell = document.createElement("td");
+            apiKeyCell.textContent = apiKey;
+            row.appendChild(apiKeyCell);
+
+            let errorMessageCell = document.createElement("td");
+            errorMessageCell.colSpan = "5";
+            errorMessageCell.style.width = "90px";
+            errorMessageCell.classList.add("status-error");
+            errorMessageCell.textContent =
+              "API请求失败,请检查其有效性或网络情况";
+            row.appendChild(errorMessageCell);
+
+            tableBody.appendChild(row);
+
+            // 添加以下代码，查询完成后删除已查询的API-KEY
+            if (i === apiKeys.length - 1) {
+              queriedApiKeys = [];
+            }
+          });
+        }
+      }
+
+      // let apiUrlSelect = document.getElementById("api-url-select");
+      let apiUrlSelect = "https://api.openai.com"
+      let customUrlInput = document.getElementById("custom-url-input");
+
+      apiUrlSelect.addEventListener("change", function () {
+        if (apiUrlSelect.value === "custom") {
+          customUrlInput.style.display = "inline-block";
+          customUrlInput.style.marginTop = "5px";
+        } else {
+          customUrlInput.style.display = "none";
+        }
+      });
+    </script>
+  </body>
+</html>
